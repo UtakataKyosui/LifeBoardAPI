@@ -10,7 +10,7 @@ export class HealthController {
 	constructor(private readonly health: HealthService) {}
 
 	@Get()
-	@ApiOkResponse({ type: HealthResponseDto })
+	@ApiOkResponse({ type: HealthResponseDto.Output })
 	@ZodSerializerDto(HealthResponseDto)
 	check() {
 		return this.health.check();
