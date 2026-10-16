@@ -1,13 +1,35 @@
 # LifeBoard API
 
-生活習慣・定期的な家事・学習などの反復行動（Routine）と、その実施記録・数値実績を管理する API。
+LifeBoard の API を開発する pnpm workspace。
 
-## 技術スタック
+## 構成
 
-- NestJS
-- Cloudflare Workers
-- pnpm workspace
+| パス | 内容 |
+| --- | --- |
+| `apps/api` (`@lifeboard/api`) | Cloudflare Workers 上で動く NestJS アプリケーション |
 
-## 状態
+## 前提
 
-開発の初期段階。
+- Node.js 22 以上
+- pnpm 12（`packageManager` で固定）
+
+## コマンド
+
+ルートで実行する。
+
+| コマンド | 内容 |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | 依存関係のインストール |
+| `pnpm lint` | oxlint による静的解析（警告もエラー扱い） |
+| `pnpm typecheck` | `cf workers types` で型を生成し `tsc`（strict）を実行 |
+| `pnpm test` | vitest による全パッケージのテスト |
+| `pnpm build` | 全パッケージのビルド |
+| `pnpm dev` | `cf dev` でローカル起動（`http://localhost:5173/health`） |
+
+## 依存関係のビルドスクリプト
+
+pnpm はビルドスクリプトを持つ依存関係をそのままでは実行しない。許可するパッケージは `pnpm-workspace.yaml` の `allowBuilds` に列挙する（現在は `workerd`）。
+
+## 設計判断
+
+[docs/decisions.md](docs/decisions.md) を参照。
