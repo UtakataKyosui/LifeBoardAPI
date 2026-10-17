@@ -2,6 +2,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.ts";
+import { createOpenApiDocument } from "../src/openapi.ts";
 import type { INestApplication } from "@nestjs/common";
 
 describe("GET /health", () => {
@@ -24,5 +25,16 @@ describe("GET /health", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.body).toEqual({ status: "ok" });
+	});
+
+	it("OpenAPI のレスポンスは出力スキーマで未定義の項目を許可しない", () => {
+		const document = createOpenApiDocument(app);
+		const schemas = document.components?.schemas ?? {};
+
+		expect(schemas.HealthResponseDto_Output).toMatchObject({
+			type: "object",
+			required: ["status"],
+			additionalProperties: false,
+		});
 	});
 });
