@@ -1,0 +1,109 @@
+openapi: 3.1.0
+info:
+  title: LifeBoard API
+  version: 0.0.0
+paths:
+  /routines:
+    post:
+      summary: Routine を登録する
+      description: Notion が保存を確認した後に 201 を返す。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoutineInput" }
+      responses:
+        "201":
+          description: 登録した Routine
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Routine" }
+        "400": { description: 入力が不正 }
+        "502": { description: Notion への保存に失敗、または応答が不正。成功として返さない }
+    get:
+      summary: 保存済み Routine を一覧取得する
+      description: 全ページを取得する。0 件のときは items が空配列。
+      responses:
+        "200":
+          description: Routine 一覧
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoutineList" }
+        "502": { description: Notion の取得に失敗、または保存データが不正 }
+  /routines/schedule:
+    get:
+      summary: 指定日の実行予定を算出する
+      description: >
+        active な Routine の予定を返す（MVP は毎日のみ）。date 省略時は各 Routine の
+        タイムゾーンでの現在日付。LLM は使わず、同じ入力から同じ結果を返す。
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+      responses:
+        "200":
+          description: 実行予定
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScheduleResponse" }
+        "400": { description: date が不正 }
+        "502": { description: Routine の取得に失敗 }
+components:
+  schemas:
+    RoutineInput:
+      type: object
+      required: [name, category, schedule]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        category: { type: string, enum: [habit, chore, environment, learning] }
+        purpose: { type: string, maxLength: 500 }
+        schedule: { $ref: "#/components/schemas/DailySchedule" }
+        target: { $ref: "#/components/schemas/Target" }
+    DailySchedule:
+      type: object
+      required: [type, timeZone]
+      properties:
+        type: { type: string, enum: [daily] }
+        timeZone: { type: string, description: IANA タイムゾーン名 }
+    Target:
+      type: object
+      required: [metric, operator, unit]
+      properties:
+        metric: { type: string }
+        operator: { type: string, enum: [gte, lte, eq, between] }
+        value: { type: number, description: between 以外で必須 }
+        min: { type: number, description: between で必須 }
+        max: { type: number, description: between で必須 }
+        unit: { type: string }
+    Routine:
+      allOf:
+        - $ref: "#/components/schemas/RoutineInput"
+        - type: object
+          required: [id, status, revision, createdAt, updatedAt]
+          properties:
+            id: { type: string, format: uuid }
+            status: { type: string, enum: [active, archived] }
+            revision: { type: integer, minimum: 1 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    RoutineList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Routine" }
+    ScheduleResponse:
+      type: object
+      required: [occurrences]
+      properties:
+        occurrences:
+          type: array
+          items:
+            type: object
+            required: [occurrenceKey, routineId, scheduledDate]
+            properties:
+              occurrenceKey: { type: string }
+              routineId: { type: string, format: uuid }
+              scheduledDate: { type: string, description: "YYYY-MM-DD" }
