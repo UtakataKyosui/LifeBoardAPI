@@ -88,4 +88,17 @@ describe("summarizeDay", () => {
 		const withRecord = rec({ value: 1 }, { routineId: archived.id });
 		expect(summarizeDay([archived], [withRecord], date)).toHaveLength(1);
 	});
+
+	it.each([
+		[{ operator: "eq", value: 0.3 }, [0.1, 0.2], "achieved"],
+		[{ operator: "lte", value: 0.3 }, [0.1, 0.2], "achieved"],
+		[{ operator: "gte", value: 0.8 }, [0.1, 0.7], "achieved"],
+		[{ operator: "between", min: 0.3, max: 0.3 }, [0.1, 0.2], "achieved"],
+		[{ operator: "gte", value: 0.31 }, [0.1, 0.2], "not_achieved"],
+	])("小数の加算誤差で判定を変えない: %j", (targetPart, values, expected) => {
+		const r = makeRoutine({ target: { metric: "duration", unit: "min", ...targetPart } as Routine["target"] });
+		const s = summaryOf(values.map((value) => rec({ value })), r);
+		expect(s.targetStatus).toBe(expected);
+		expect(s.measurements[0]?.sum).toBe(values.length === 2 && values[0] === 0.1 && values[1] === 0.2 ? 0.3 : s.measurements[0]?.sum);
+	});
 });

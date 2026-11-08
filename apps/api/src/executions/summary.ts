@@ -22,16 +22,21 @@ export type RoutineDailySummary = {
 	targetStatus: TargetStatus;
 };
 
-function evaluate(target: NonNullable<Routine["target"]>, sum: number): boolean {
+/** 浮動小数点の加算誤差（0.1 + 0.2 など）で判定が変わらないよう、小数 9 桁で丸める。 */
+const DECIMALS = 1e9;
+const round = (value: number) => Math.round(value * DECIMALS) / DECIMALS;
+
+function evaluate(target: NonNullable<Routine["target"]>, rawSum: number): boolean {
+	const sum = round(rawSum);
 	switch (target.operator) {
 		case "gte":
-			return sum >= (target.value as number);
+			return sum >= round(target.value as number);
 		case "lte":
-			return sum <= (target.value as number);
+			return sum <= round(target.value as number);
 		case "eq":
-			return sum === target.value;
+			return sum === round(target.value as number);
 		case "between":
-			return sum >= (target.min as number) && sum <= (target.max as number);
+			return sum >= round(target.min as number) && sum <= round(target.max as number);
 	}
 }
 
@@ -59,7 +64,9 @@ export function summarizeDay(
 				group.sum += measurement.value;
 				groups.set(key, group);
 			}
-			const measurements = [...groups.values()].sort((a, b) =>
+			const measurements = [...groups.values()]
+				.map((group) => ({ ...group, sum: round(group.sum) }))
+				.sort((a, b) =>
 				`${a.metric}\u0000${a.unit}`.localeCompare(`${b.metric}\u0000${b.unit}`),
 			);
 
