@@ -42,6 +42,20 @@ API 定義は [apps/api/openapi.yaml](apps/api/openapi.yaml)、判断は [docs/d
 
 既知の制約: Notion API クライアント（#11）が未実装のため、実行時の保存・取得は「未設定」エラー（502）になる。テストは `NotionRoutineClient` を差し替えて検証している。実 Notion との接続、Workers 上での動作は未検証。Routine の編集・アーカイブ API、毎日以外の周期は対象外。
 
+## 実施記録 API
+
+API 定義は [apps/api/openapi.yaml](apps/api/openapi.yaml)、判断は [docs/decisions.md](docs/decisions.md)（EX-01〜EX-09）、Notion のプロパティは [docs/notion-execution-datasource.md](docs/notion-execution-datasource.md) を参照。
+
+| メソッド・パス | 内容 |
+| --- | --- |
+| `POST /execution-records` | 1 回の実施を登録する。同日・同 Routine の複数登録、数値なし（measurement 省略）も可 |
+| `GET /execution-records?date=YYYY-MM-DD` | 指定日（登録時の Routine のタイムゾーンでの実施日）の記録を全件取得する |
+| `GET /execution-records/summary?date=YYYY-MM-DD` | 保存済み記録から実施回数・数値合計・目標達成を導出する |
+
+エラー: 入力不正 400、Routine 不在 404、目標と metric・unit が不一致 422、保存先の失敗・不正データ 502。
+
+既知の制約: Notion API クライアント（#11）が未実装のため、実行時の保存・取得は「未設定」エラー（502）になる。テストは `ExecutionNotionClient` と `NotionRoutineClient` を差し替えて検証している。目標の適用期間（U-02）が未決定のため、目標達成は「その日の合計」で暫定判定する。単位換算、記録の編集・削除、週次以上の集計は対象外。実 Notion との接続、Workers 上での動作は未検証。
+
 ## 依存関係のビルドスクリプト
 
 pnpm はビルドスクリプトを持つ依存関係をそのままでは実行しない。許可するパッケージは `pnpm-workspace.yaml` の `allowBuilds` に列挙する（`workerd` は許可、テレメトリ用の `@scarf/scarf` は拒否）。

@@ -49,6 +49,65 @@ paths:
               schema: { $ref: "#/components/schemas/ScheduleResponse" }
         "400": { description: date が不正 }
         "502": { description: Routine の取得に失敗 }
+  /execution-records:
+    post:
+      summary: 実施記録を登録する
+      description: >
+        1 レコード = 1 回の実施。同日・同 Routine に複数登録できる。measurement は任意で、
+        省略（数値なし）と value 0 は別物。Routine が存在し、目標がある場合は metric・unit が
+        目標と一致すること。保存先が確認した後に 201 を返す。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExecutionRecordInput" }
+      responses:
+        "201":
+          description: 登録した実施記録
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExecutionRecord" }
+        "400": { description: 入力が不正 }
+        "404": { description: routineId の Routine が存在しない }
+        "422": { description: measurement の metric・unit が Routine の目標と一致しない }
+        "502": { description: 保存先または Routine の取得に失敗、応答が不正。成功として返さない }
+    get:
+      summary: 指定日の実施記録を取得する
+      description: >
+        localDate が date に等しい記録を全件、実施時刻の昇順で返す。localDate は登録時の
+        Routine のタイムゾーンで決まる。0 件は 200 の空配列、取得失敗は 502。
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+      responses:
+        "200":
+          description: 実施記録
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExecutionRecordList" }
+        "400": { description: date が無い、または不正 }
+        "502": { description: 取得に失敗、または保存データが不正 }
+  /execution-records/summary:
+    get:
+      summary: 指定日の数値集計を導出する
+      description: >
+        保存済みの実施記録から Routine ごとに導出する。実施有無（executed）と数値目標の達成
+        （targetStatus）は独立。数値なしの記録は 0 として加算しない。
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+      responses:
+        "200":
+          description: 日次集計
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DailySummaryResponse" }
+        "400": { description: date が無い、または不正 }
+        "502": { description: 実施記録または Routine の取得に失敗 }
 components:
   schemas:
     RoutineInput:
@@ -107,3 +166,63 @@ components:
               occurrenceKey: { type: string }
               routineId: { type: string, format: uuid }
               scheduledDate: { type: string, description: "YYYY-MM-DD" }
+    Measurement:
+      type: object
+      required: [metric, value, unit]
+      properties:
+        metric: { type: string, minLength: 1, maxLength: 100 }
+        value: { type: number, description: 有限の数値。0 は有効な値 }
+        unit: { type: string, minLength: 1, maxLength: 30 }
+    ExecutionRecordInput:
+      type: object
+      required: [routineId, performedAt]
+      properties:
+        routineId: { type: string, format: uuid }
+        performedAt: { type: string, format: date-time, description: オフセット付き ISO 8601 }
+        measurement: { $ref: "#/components/schemas/Measurement" }
+    ExecutionRecord:
+      type: object
+      required: [id, routineId, performedAt, localDate, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        routineId: { type: string, format: uuid }
+        performedAt: { type: string, format: date-time, description: UTC 表記 }
+        localDate: { type: string, description: "登録時の Routine のタイムゾーンでの実施日 YYYY-MM-DD" }
+        measurement: { $ref: "#/components/schemas/Measurement" }
+        createdAt: { type: string, format: date-time }
+    ExecutionRecordList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ExecutionRecord" }
+    DailySummaryResponse:
+      type: object
+      required: [date, summaries]
+      properties:
+        date: { type: string, description: "YYYY-MM-DD" }
+        summaries:
+          type: array
+          items:
+            type: object
+            required: [routineId, date, executionCount, executed, measurements, targetStatus]
+            properties:
+              routineId: { type: string, format: uuid }
+              date: { type: string }
+              executionCount: { type: integer, minimum: 0, description: 数値の有無に関わらない記録件数 }
+              executed: { type: boolean }
+              measurements:
+                type: array
+                description: metric・unit ごとの合計。数値なしの記録は含めない
+                items:
+                  type: object
+                  required: [metric, unit, count, sum]
+                  properties:
+                    metric: { type: string }
+                    unit: { type: string }
+                    count: { type: integer, minimum: 1 }
+                    sum: { type: number }
+              targetStatus:
+                type: string
+                enum: [achieved, not_achieved, no_data, no_target]

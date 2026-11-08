@@ -12,5 +12,6 @@ import { RoutineService } from "./routine.service.ts";
 		{ provide: RoutineRepository, useClass: NotionRoutineRepository },
 		{ provide: NotionRoutineClient, useClass: UnconfiguredNotionRoutineClient },
 	],
+	exports: [RoutineRepository],
 })
 export class RoutineModule {}
