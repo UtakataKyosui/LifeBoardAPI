@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh extension install github/gh-actions-lock)",
+      "Bash(gh actions-lock:*)"
+    ]
+  }
+}
