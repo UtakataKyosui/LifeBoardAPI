@@ -27,6 +27,22 @@ describe("Routine mapper", () => {
 		expect(() => fromNotionPage(toNotionPage(routine))).toThrow();
 	});
 
+	it("UTC オフセット付きの日時を UTC に正規化する", () => {
+		const page = toNotionPage(makeRoutine()) as {
+			properties: Record<string, { date: { start: string } }>;
+		};
+		page.properties["Created At"]!.date.start = "2026-10-18T09:00:00.000+09:00";
+		expect(fromNotionPage(page).createdAt).toBe("2026-10-18T00:00:00.000Z");
+	});
+
+	it("一部だけ入力された目標を無視せず拒否する", () => {
+		const page = toNotionPage(makeRoutine({ target: undefined })) as {
+			properties: Record<string, { number: number | null }>;
+		};
+		page.properties["Target Value"]!.number = 0;
+		expect(() => fromNotionPage(page)).toThrow();
+	});
+
 	it("必須プロパティの欠落を拒否する", () => {
 		const broken = toNotionPage(makeRoutine()) as { properties: Record<string, unknown> };
 		delete broken.properties.Status;

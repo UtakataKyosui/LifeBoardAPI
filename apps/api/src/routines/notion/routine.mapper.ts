@@ -77,6 +77,13 @@ const NotionRoutinePageSchema = z.object({
 const joined = (parts: { plain_text: string }[]) => parts.map((part) => part.plain_text).join("");
 const orUndefined = <T>(value: T | null | undefined) => value ?? undefined;
 
+/** Notion は UTC オフセット付きの日時を返し得るため、ドメインの UTC 表記に揃える。解釈できない値はそのまま渡して検証で拒否させる。 */
+function toUtcIso(value: string | undefined): string | undefined {
+	if (value === undefined) return undefined;
+	const time = new Date(value);
+	return Number.isNaN(time.getTime()) ? value : time.toISOString();
+}
+
 /**
  * Notion のページをドメインの Routine に変換する。ページ形状またはドメイン制約に
  * 合わない場合は ZodError を投げる（呼び出し側が不正データとして扱う）。
@@ -86,6 +93,10 @@ export function fromNotionPage(page: unknown): Routine {
 	const p = ROUTINE_PROPERTY;
 	const metric = joined(props[p.targetMetric].rich_text);
 	const operator = props[p.targetOperator].select?.name;
+	const unit = joined(props[p.targetUnit].rich_text);
+	const numbers = [props[p.targetValue].number, props[p.targetMin].number, props[p.targetMax].number];
+	// 一部のプロパティだけ入力された目標を握りつぶさず、検証で拒否させる（0 は入力済み）。
+	const hasTarget = Boolean(metric || operator || unit) || numbers.some((n) => n !== null);
 
 	return RoutineSchema.parse({
 		id: joined(props[p.routineId].rich_text),
@@ -98,17 +109,17 @@ export function fromNotionPage(page: unknown): Routine {
 			timeZone: joined(props[p.timeZone].rich_text),
 		},
 		revision: props[p.revision].number ?? undefined,
-		createdAt: props[p.createdAt].date?.start,
-		updatedAt: props[p.updatedAt].date?.start,
+		createdAt: toUtcIso(props[p.createdAt].date?.start),
+		updatedAt: toUtcIso(props[p.updatedAt].date?.start),
 		target:
-			metric || operator
+			hasTarget
 				? {
 						metric,
 						operator,
 						value: orUndefined(props[p.targetValue].number),
 						min: orUndefined(props[p.targetMin].number),
 						max: orUndefined(props[p.targetMax].number),
-						unit: joined(props[p.targetUnit].rich_text),
+						unit,
 					}
 				: undefined,
 	});
