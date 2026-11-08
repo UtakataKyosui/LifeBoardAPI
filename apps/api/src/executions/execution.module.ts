@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { ExecutionNotionApiAdapter } from "../notion/notion-clients.ts";
+import { resolveNotion } from "../notion/notion-config.ts";
 import { RoutineModule } from "../routines/routine.module.ts";
 import { ExecutionController } from "./execution.controller.ts";
 import { ExecutionRepository } from "./execution.repository.ts";
@@ -12,7 +14,13 @@ import { NotionExecutionRepository } from "./notion/notion-execution.repository.
 	providers: [
 		ExecutionService,
 		{ provide: ExecutionRepository, useClass: NotionExecutionRepository },
-		{ provide: ExecutionNotionClient, useClass: UnconfiguredExecutionNotionClient },
+		{
+			provide: ExecutionNotionClient,
+			useFactory: () => {
+				const notion = resolveNotion("execution");
+				return notion ? new ExecutionNotionApiAdapter(notion.api, notion.dataSourceId) : new UnconfiguredExecutionNotionClient();
+			},
+		},
 	],
 })
 export class ExecutionModule {}

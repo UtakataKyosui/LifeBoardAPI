@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { AdjustmentNotionApiAdapter } from "../notion/notion-clients.ts";
+import { resolveNotion } from "../notion/notion-config.ts";
 import { RoutineModule } from "../routines/routine.module.ts";
 import { AdjustmentController } from "./adjustment.controller.ts";
 import { AdjustmentRepository } from "./adjustment.repository.ts";
@@ -12,7 +14,13 @@ import { NotionAdjustmentRepository } from "./notion/notion-adjustment.repositor
 	providers: [
 		AdjustmentService,
 		{ provide: AdjustmentRepository, useClass: NotionAdjustmentRepository },
-		{ provide: AdjustmentNotionClient, useClass: UnconfiguredAdjustmentNotionClient },
+		{
+			provide: AdjustmentNotionClient,
+			useFactory: () => {
+				const notion = resolveNotion("adjustment");
+				return notion ? new AdjustmentNotionApiAdapter(notion.api, notion.dataSourceId) : new UnconfiguredAdjustmentNotionClient();
+			},
+		},
 	],
 })
 export class AdjustmentModule {}

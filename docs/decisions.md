@@ -57,3 +57,6 @@ definite.md の T-01 として #29 で扱う。
 - 追加する依存ライブラリの互換性（`nestjs-zod` と `@nestjs/swagger` は上記の peer 範囲外。Workers 本番での動作は未確認）
 - Workers 上で入力検証が 400 を返すこと（Workers に入力を受ける実エンドポイントがまだ無い）
 - `pnpm test` は Node 上で動くため、Workers 上の動作を自動で検証するテストは無い
+| NT-01 | Notion API クライアント | `NotionApiClient`（`notion/notion-api.client.ts`）が認証（Bearer）・`Notion-Version: 2025-09-03`・ページ作成（`parent.data_source_id`）・データソース検索（100 件/ページ、`start_cursor`）を担う。各ドメインの client 抽象は `notion-clients.ts` のアダプターが実装し、ドメインへ Notion 固有の構造を持ち込まない。 | 暫定 | 2026-11-08 |
+| NT-02 | 設定 | 環境変数 `NOTION_TOKEN` と `NOTION_ROUTINE_DATA_SOURCE_ID` / `NOTION_EXECUTION_DATA_SOURCE_ID` / `NOTION_ADJUSTMENT_DATA_SOURCE_ID` で設定する。トークンかデータソース ID が欠けるとその領域は従来どおり「未設定」で失敗する（502）。トークンはシークレットとして扱い、リポジトリに置かない。 | 暫定 | 2026-11-08 |
+| NT-03 | エラーとレート制限 | 429 / 500 / 502 / 503 / 504 は最大 2 回再試行する（Retry-After を優先、無ければ指数バックオフ、上限 10 秒）。それ以外の 4xx は再試行しない。例外メッセージは状態コードとエラーコードのみで、応答本文・トークン・リクエスト内容を含めない。一覧応答の形式は検証し、ページの中身は各 mapper が検証する。 | 暫定 | 2026-11-08 |

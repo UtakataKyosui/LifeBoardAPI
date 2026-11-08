@@ -40,7 +40,7 @@ API 定義は [apps/api/openapi.yaml](apps/api/openapi.yaml)、判断は [docs/d
 | `GET /routines` | 保存済み Routine を全ページ取得する |
 | `GET /routines/schedule?date=YYYY-MM-DD` | 指定日の実行予定を算出する（省略時は各 Routine のタイムゾーンでの今日） |
 
-既知の制約: Notion API クライアント（#11）が未実装のため、実行時の保存・取得は「未設定」エラー（502）になる。テストは `NotionRoutineClient` を差し替えて検証している。実 Notion との接続、Workers 上での動作は未検証。Routine の編集・アーカイブ API、毎日以外の周期は対象外。
+既知の制約: Notion の接続設定（下記）が無いと、実行時の保存・取得は「未設定」エラー（502）になる。テストは `NotionRoutineClient` を差し替えて検証している。実 Notion との接続、Workers 上での動作は未検証。Routine の編集・アーカイブ API、毎日以外の周期は対象外。
 
 ## 実施記録 API
 
@@ -73,3 +73,16 @@ pnpm はビルドスクリプトを持つ依存関係をそのままでは実行
 ## 設計判断
 
 [docs/decisions.md](docs/decisions.md) を参照。
+
+## Notion 接続設定
+
+判断は [docs/decisions.md](docs/decisions.md)（NT-01〜NT-03）を参照。Worker の環境変数（トークンはシークレット）で設定する。
+
+| 変数 | 内容 |
+| --- | --- |
+| `NOTION_TOKEN` | Notion インテグレーションのトークン |
+| `NOTION_ROUTINE_DATA_SOURCE_ID` | Routine 用データソース（[仕様](docs/notion-routine-datasource.md)） |
+| `NOTION_EXECUTION_DATA_SOURCE_ID` | 実施記録用データソース（[仕様](docs/notion-execution-datasource.md)） |
+| `NOTION_ADJUSTMENT_DATA_SOURCE_ID` | スキップ・延期用データソース（[仕様](docs/notion-adjustment-datasource.md)） |
+
+既知の制約: Notion API はモックしたテストでのみ検証しており、実 Notion・Workers 上での接続は未検証。データソース自体（プロパティ作成）は各仕様書に従い手動で用意する。
