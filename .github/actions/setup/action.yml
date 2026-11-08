@@ -1,0 +1,18 @@
+name: Setup
+description: pnpm と Node.js を用意し、pnpm store のキャッシュを使って依存関係をインストールする
+
+runs:
+  using: composite
+  steps:
+    # バージョンはルートの package.json の packageManager から読む
+    - uses: pnpm/action-setup@v6.1.1
+
+    # pnpm store を pnpm-lock.yaml のハッシュをキーにキャッシュする
+    - uses: actions/setup-node@v7.1.0
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile --prefer-offline

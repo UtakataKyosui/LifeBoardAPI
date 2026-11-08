@@ -26,6 +26,23 @@ LifeBoard の API を開発する pnpm workspace。
 | `pnpm build` | 全パッケージのビルド |
 | `pnpm dev` | `cf dev` でローカル起動（`http://localhost:5173/health`、OpenAPI 定義は `/openapi.json`） |
 
+## コミット前チェック
+
+`pnpm install` で `.githooks` が有効になり（`core.hooksPath`）、コミット時に `pnpm lint` と `pnpm typecheck` を実行する。緊急時は `git commit --no-verify` で省略できるが、CI で必ず検査される。
+
+## CI
+
+`.github/workflows/ci.yml` で、PR と `main` への push ごとに上のコマンドのうち lint・typecheck・test・build を並列に実行する。
+
+- PR では変更されたファイルを見て、必要なジョブだけを実行する。ドキュメントだけの変更ではすべてスキップする。
+  - Lint: TypeScript/JavaScript ファイル、oxlint の設定、依存関係、CI 定義の変更
+  - Typecheck・Test・Build: `apps/api/**`、依存関係、CI 定義の変更
+- `main` への push（マージ後の確認）では、全ジョブを実行する。ブランチへの push では起動せず、PR の更新でのみ実行するため、同じ変更を二重に検査しない。
+- action の版は `.github/workflows/actions.lock` で固定する（`uses:` はタグ指定、実行されるコミットはロックファイルが決める）。`uses:` を追加・変更したら `gh actions-lock` を実行してロックファイルを更新する。CI の `Verify actions.lock` が `gh actions-lock --verify` で不一致を検出する。
+- pnpm store を `pnpm-lock.yaml` のハッシュをキーにキャッシュする（`.github/actions/setup`）。
+- 同じ PR・ブランチで新しい実行が始まると、古い実行はキャンセルされる。
+- ブランチ保護の必須チェックには `CI result` だけを指定する。スキップしたジョブは成功として扱う。
+
 ## 入力検証と OpenAPI
 
 Zod スキーマを定義元に、`nestjs-zod` の `createZodDto` で DTO を作る。入力は `ZodValidationPipe` で検証し、OpenAPI は `@nestjs/swagger` で同じスキーマから生成する。

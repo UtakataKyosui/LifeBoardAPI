@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 同じブランチ・PR で新しい実行が始まったら古い実行を止める
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # 変更されたファイルから、実行が必要なジョブを決める。
+  # PR のときだけ絞り込み、main への push では全ジョブを実行する。
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      lint: ${{ steps.decide.outputs.lint }}
+      api: ${{ steps.decide.outputs.api }}
+      workflows: ${{ steps.decide.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            shared: &shared
+              - package.json
+              - pnpm-lock.yaml
+              - pnpm-workspace.yaml
+              - .github/workflows/ci.yml
+              - .github/actions/**
+            lint:
+              - *shared
+              - "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"
+              - "**/.oxlintrc*"
+              - "**/oxlint*.json"
+            api:
+              - *shared
+              - apps/api/**
+            workflows:
+              - .github/workflows/**
+              - .github/actions/**
+
+      - name: Decide jobs to run
+        id: decide
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          LINT: ${{ steps.filter.outputs.lint }}
+          API: ${{ steps.filter.outputs.api }}
+          WORKFLOWS: ${{ steps.filter.outputs.workflows }}
+        run: |
+          if [ "$IS_PR" = "true" ]; then
+            echo "lint=$LINT" >> "$GITHUB_OUTPUT"
+            echo "api=$API" >> "$GITHUB_OUTPUT"
+            echo "workflows=$WORKFLOWS" >> "$GITHUB_OUTPUT"
+          else
+            echo "lint=true" >> "$GITHUB_OUTPUT"
+            echo "api=true" >> "$GITHUB_OUTPUT"
+            echo "workflows=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: Lint
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: Typecheck
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup
+      - run: pnpm typecheck
+
+  test:
+    name: Test
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup
+      - run: pnpm test
+
+  build:
+    name: Build
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup
+      - run: pnpm build
+
+  # actions.lock が workflow の uses と一致し、固定したコミットが上流で検証できることを確かめる。
+  # 拡張はバージョンを固定する（出力形式が 0.x の間に変わるため）。
+  lockfile:
+    name: Verify actions.lock
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: gh extension install github/gh-actions-lock --pin v0.4.1
+      - run: gh actions-lock --verify
+
+  # ブランチ保護の必須チェックにはこのジョブだけを指定する。
+  # スキップされたジョブは成功扱い、失敗・キャンセルされたジョブがあれば失敗にする。
+  ci-result:
+    name: CI result
+    needs: [changes, lint, typecheck, test, build, lockfile]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "::error::a required job finished with '$result'"; exit 1 ;;
+            esac
+          done
