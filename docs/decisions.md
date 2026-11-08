@@ -16,6 +16,15 @@
 | RT-05 | Repository | `RoutineRepository`（抽象クラス、save/listAll）を Service が使い、Notion は `NotionRoutineRepository` に隔離する（T-12）。Notion API クライアント（#11）は未実装のため、`NotionRoutineClient` を DI の境界とし、既定では「未設定」で常に失敗する。 | 暫定 | 2026-10-19 |
 | RT-06 | 失敗の扱い | Notion の通信失敗・レート制限・応答検証失敗はすべて 502 を返し、保存成功として返さない。一覧は一部ページが不正でも欠落させず全体を失敗にする。ログには種別と不正なプロパティ名のみ出し、内容・トークンは出さない。 | 暫定 | 2026-10-19 |
 | RT-07 | 実行予定 | `GET /routines/schedule?date=YYYY-MM-DD`。active な Routine ごとに 1 件の Occurrence（occurrenceKey = `{routineId}:{date}`）を返す。date 省略時は各 Routine の timeZone での今日。LLM は使わず、純関数（`routines/occurrence.ts`）で算出する。 | 暫定 | 2026-10-19 |
+| EX-01 | ExecutionRecord スキーマ | 1 レコード = 1 回の実施。id（UUID）・routineId・performedAt（UTC）・localDate・measurement（任意）・createdAt を持つ。同日・同 Routine の複数レコードを許容し、一意制約を持たない。id・localDate・createdAt はサーバーが決める。ドメイン（`executions/execution.schema.ts`）は Zod のみに依存する。 | 暫定 | 2026-11-08 |
+| EX-02 | Measurement | `{ metric, value, unit }` を丸ごと任意とする。省略は「数値なし」、`value: 0` は「ゼロを入力」で別物。value は有限数。単位換算はしない。Routine に目標がある場合、metric・unit が目標と一致しなければ 422。目標が無い Routine は任意の metric・unit を受け付ける。 | 暫定 | 2026-11-08 |
+| EX-03 | 実施日（localDate） | 登録時に performedAt を Routine の `schedule.timeZone` で評価した `YYYY-MM-DD` を保存する。後から Routine の timeZone を変えても過去の記録の日付は動かない。日付別取得は localDate の一致で行い、隣接日は保存先が返しても取り除く。 | 暫定 | 2026-11-08 |
+| EX-04 | 登録の前提 | Notion の一意制約・トランザクションに依存しない。Routine の存在は保存前に確認するだけで、確認と保存の間の競合は防がない。存在しなければ 404。archived の Routine への記録は拒否しない（実施の事実を優先）。performedAt が未来でも拒否しない。 | 暫定 | 2026-11-08 |
+| EX-05 | 失敗の扱い | 保存先・Routine の通信失敗、応答の検証失敗は 502。保存成功として返さない。0 件は 200 の空配列で取得失敗と区別する。ログには種別と不正プロパティ名のみ出す（RT-06 と同じ）。 | 暫定 | 2026-11-08 |
+| EX-06 | 日次集計 | `GET /execution-records/summary?date=`。保存済み記録から純関数（`executions/summary.ts`）で導出し、集計結果は保存しない。executionCount（記録件数）と measurements（metric・unit ごとの count・sum、数値なしは含めない）を別々に出す。 | 暫定 | 2026-11-08 |
+| EX-07 | 目標達成の評価 | 実施有無（`executed`）と目標達成（`targetStatus`）を分離する。目標と同じ metric・unit の合計に対し operator で判定し、achieved / not_achieved。対応する数値が 1 件も無ければ no_data（未達でもゼロでもない）、目標なしは no_target。**目標の適用期間は U-02 が未決定のため、暫定で「その日の合計」とする。** 週単位などは扱わない。合計と目標値は小数 9 桁に丸めて比較し、浮動小数点の加算誤差（0.1 + 0.2 など）で判定を変えない。 | 暫定（U-02 未決定） | 2026-11-08 |
+| EX-08 | 日付指定 | 日付別取得・集計は `date` を必須とする。Routine ごとにタイムゾーンが異なるため「今日」を一意に決められない。 | 暫定 | 2026-11-08 |
+| EX-09 | Repository | `ExecutionRepository`（save/listByLocalDate）を Service が使い、Notion は `NotionExecutionRepository` に隔離する。Notion API クライアント（#11）は未実装のため `ExecutionNotionClient` を DI の境界とし、既定は「未設定」で常に失敗する。Routine の存在確認・集計用の取得は `RoutineRepository.listAll` を使う（Routine 数が少ない MVP 前提。増えたら ID 検索を追加する）。 | 暫定 | 2026-11-08 |
 
 ## 補足
 
