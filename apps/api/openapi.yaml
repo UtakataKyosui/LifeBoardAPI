@@ -108,6 +108,90 @@ paths:
               schema: { $ref: "#/components/schemas/DailySummaryResponse" }
         "400": { description: date が無い、または不正 }
         "502": { description: 実施記録または Routine の取得に失敗 }
+  /execution-records/weekly:
+    get:
+      summary: 指定日を含む週の週N回の実施状況を導出する
+      description: >
+        週は月曜始まり（ISO 8601）。実施日数（同日の複数実施は 1 日）で判定し、数値目標の達成とは独立。
+        対象は active な週N回の Routine。
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+      responses:
+        "200":
+          description: 週次集計
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WeeklySummaryResponse" }
+        "400": { description: date が無い、または不正 }
+        "502": { description: 実施記録または Routine の取得に失敗 }
+  /occurrence-adjustments/skip:
+    post:
+      summary: 予定をスキップする
+      description: 実施記録ではない。同じ予定に有効な調整がある場合は 409。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SkipInput" }
+      responses:
+        "201": { description: 登録した調整, content: { application/json: { schema: { $ref: "#/components/schemas/Adjustment" } } } }
+        "400": { description: 入力不正 }
+        "404": { description: Routine が存在しない }
+        "409": { description: 同じ予定に有効なスキップまたは延期がある }
+        "422": { description: 予定日でない、archived、週N回の Routine }
+        "502": { description: 保存または取得に失敗 }
+  /occurrence-adjustments/postpone:
+    post:
+      summary: 予定を延期する
+      description: 元の予定日の予定を postponedTo に移す。延期先に周期上の予定がある日、別の延期が入った日は 409。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PostponeInput" }
+      responses:
+        "201": { description: 登録した調整, content: { application/json: { schema: { $ref: "#/components/schemas/Adjustment" } } } }
+        "400": { description: 入力不正 }
+        "404": { description: Routine が存在しない }
+        "409": { description: 重複（元の予定・延期先） }
+        "422": { description: 予定日でない、postponedTo が過去方向、archived、週N回の Routine }
+        "502": { description: 保存または取得に失敗 }
+  /occurrence-adjustments/{id}/cancel:
+    post:
+      summary: スキップ・延期を取り消す
+      description: 元の調整は変更せず、cancelled を追記する。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "201": { description: 追記した取消, content: { application/json: { schema: { $ref: "#/components/schemas/Adjustment" } } } }
+        "400": { description: id が不正 }
+        "404": { description: 調整が存在しない }
+        "409": { description: すでに取り消されている }
+        "422": { description: 取消そのものは取り消せない }
+        "502": { description: 保存または取得に失敗 }
+  /occurrence-adjustments:
+    get:
+      summary: 調整の履歴を取得する
+      description: cancelled を含む全イベント。date 指定時は scheduledDate または postponedTo がその日のもの。
+      parameters:
+        - { name: date, in: query, required: false, schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" } }
+      responses:
+        "200": { description: 調整の一覧, content: { application/json: { schema: { $ref: "#/components/schemas/AdjustmentList" } } } }
+        "400": { description: date が不正 }
+        "502": { description: 取得に失敗、または保存データが不正 }
+  /occurrence-adjustments/schedule:
+    get:
+      summary: 調整を反映した指定日の予定を取得する
+      description: 周期上の予定に skipped / postponed を付け、延期先の日には postponedFrom 付きで加える。いずれも実施済みを意味しない。
+      parameters:
+        - { name: date, in: query, required: true, schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" } }
+      responses:
+        "200": { description: 調整後の予定, content: { application/json: { schema: { $ref: "#/components/schemas/AdjustedSchedule" } } } }
+        "400": { description: date が無い、または不正 }
+        "502": { description: 取得に失敗、または保存データが不正 }
 components:
   schemas:
     RoutineInput:
@@ -117,14 +201,41 @@ components:
         name: { type: string, minLength: 1, maxLength: 100 }
         category: { type: string, enum: [habit, chore, environment, learning] }
         purpose: { type: string, maxLength: 500 }
-        schedule: { $ref: "#/components/schemas/DailySchedule" }
+        schedule: { $ref: "#/components/schemas/Schedule" }
         target: { $ref: "#/components/schemas/Target" }
+    Schedule:
+      oneOf:
+        - $ref: "#/components/schemas/DailySchedule"
+        - $ref: "#/components/schemas/WeeklySchedule"
+        - $ref: "#/components/schemas/WeeklyCountSchedule"
+      discriminator: { propertyName: type }
     DailySchedule:
       type: object
       required: [type, timeZone]
       properties:
         type: { type: string, enum: [daily] }
         timeZone: { type: string, description: IANA タイムゾーン名 }
+    WeeklySchedule:
+      type: object
+      description: 曜日指定。指定した曜日（Routine のタイムゾーンでの日付）だけ予定になる。
+      required: [type, daysOfWeek, timeZone]
+      properties:
+        type: { type: string, enum: [weekly] }
+        daysOfWeek:
+          type: array
+          description: ISO 曜日番号（月 = 1 … 日 = 7）。昇順・重複なし
+          minItems: 1
+          maxItems: 7
+          items: { type: integer, minimum: 1, maximum: 7 }
+        timeZone: { type: string }
+    WeeklyCountSchedule:
+      type: object
+      description: 週N回。週（月曜始まり）に N 日実施すれば達成。特定日の予定は持たない。
+      required: [type, timesPerWeek, timeZone]
+      properties:
+        type: { type: string, enum: [weekly_count] }
+        timesPerWeek: { type: integer, minimum: 1, maximum: 7 }
+        timeZone: { type: string }
     Target:
       type: object
       required: [metric, operator, unit]
@@ -226,3 +337,72 @@ components:
               targetStatus:
                 type: string
                 enum: [achieved, not_achieved, no_data, no_target]
+    WeeklySummaryResponse:
+      type: object
+      required: [date, weekStart, weekEnd, summaries]
+      properties:
+        date: { type: string }
+        weekStart: { type: string, description: 月曜 }
+        weekEnd: { type: string, description: 日曜 }
+        summaries:
+          type: array
+          items:
+            type: object
+            required: [routineId, weekStart, weekEnd, required, executedDays, executionCount, status]
+            properties:
+              routineId: { type: string, format: uuid }
+              weekStart: { type: string }
+              weekEnd: { type: string }
+              required: { type: integer, minimum: 1, description: timesPerWeek }
+              executedDays: { type: integer, minimum: 0, description: 実施のあった日数（同日複数は 1） }
+              executionCount: { type: integer, minimum: 0, description: 参考値。判定には使わない }
+              status: { type: string, enum: [achieved, not_achieved] }
+    SkipInput:
+      type: object
+      required: [routineId, scheduledDate]
+      properties:
+        routineId: { type: string, format: uuid }
+        scheduledDate: { type: string, description: 元の予定日 YYYY-MM-DD }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+    PostponeInput:
+      allOf:
+        - $ref: "#/components/schemas/SkipInput"
+        - type: object
+          required: [postponedTo]
+          properties:
+            postponedTo: { type: string, description: scheduledDate より後の日付 }
+    Adjustment:
+      type: object
+      required: [id, kind, routineId, scheduledDate, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [skipped, postponed, cancelled] }
+        routineId: { type: string, format: uuid }
+        scheduledDate: { type: string }
+        postponedTo: { type: string, description: postponed のみ }
+        cancelsId: { type: string, format: uuid, description: cancelled のみ。取り消す調整の id }
+        reason: { type: string }
+        createdAt: { type: string, format: date-time }
+    AdjustmentList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Adjustment" } }
+    AdjustedSchedule:
+      type: object
+      required: [date, occurrences]
+      properties:
+        date: { type: string }
+        occurrences:
+          type: array
+          items:
+            type: object
+            required: [occurrenceKey, routineId, scheduledDate, status]
+            properties:
+              occurrenceKey: { type: string }
+              routineId: { type: string, format: uuid }
+              scheduledDate: { type: string }
+              status: { type: string, enum: [pending, skipped, postponed] }
+              adjustmentId: { type: string, format: uuid }
+              postponedTo: { type: string }
+              postponedFrom: { type: string }

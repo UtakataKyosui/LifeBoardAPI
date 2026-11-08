@@ -15,7 +15,7 @@ describe("RoutineInputSchema", () => {
 	it.each([
 		["空の名前", { ...validInput, name: "  " }],
 		["未定義のカテゴリ", { ...validInput, category: "todo" }],
-		["未対応の周期", { ...validInput, schedule: { type: "weekly", timeZone: "Asia/Tokyo" } }],
+		["未対応の周期", { ...validInput, schedule: { type: "monthly", timeZone: "Asia/Tokyo" } }],
 		["不正なタイムゾーン", { ...validInput, schedule: { type: "daily", timeZone: "Mars/Base" } }],
 		["必須項目の欠落", { category: "habit", schedule: validInput.schedule }],
 	])("%s を拒否する", (_label, input) => {

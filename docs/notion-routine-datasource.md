@@ -9,8 +9,10 @@
 | Category | select | 必須 | habit / chore / environment / learning |
 | Purpose | rich_text | 任意 | 空なら未設定 |
 | Status | select | 必須 | active / archived |
-| Schedule Type | select | 必須 | daily |
+| Schedule Type | select | 必須 | daily / weekly / weekly_count |
 | Time Zone | rich_text | 必須 | IANA 名 |
+| Days Of Week | rich_text | weekly のとき必須 | ISO 曜日番号のカンマ区切り昇順（例 `1,3,5`）。他の周期では空 |
+| Times Per Week | number | weekly_count のとき必須 | 1〜7 の整数。他の周期では空 |
 | Revision | number | 必須 | 1 以上の整数 |
 | Created At / Updated At | date | 必須 | ISO 8601 |
 | Target Metric / Target Unit | rich_text | 目標ありのとき必須 | 目標なしなら空 |

@@ -12,6 +12,8 @@ export const ROUTINE_PROPERTY = {
 	status: "Status",
 	scheduleType: "Schedule Type",
 	timeZone: "Time Zone",
+	daysOfWeek: "Days Of Week",
+	timesPerWeek: "Times Per Week",
 	revision: "Revision",
 	createdAt: "Created At",
 	updatedAt: "Updated At",
@@ -36,6 +38,12 @@ export function toNotionProperties(routine: Routine): NotionProperties {
 		[p.status]: { select: { name: routine.status } },
 		[p.scheduleType]: { select: { name: routine.schedule.type } },
 		[p.timeZone]: { rich_text: text(routine.schedule.timeZone) },
+		[p.daysOfWeek]: {
+			rich_text: routine.schedule.type === "weekly" ? text(routine.schedule.daysOfWeek.join(",")) : [],
+		},
+		[p.timesPerWeek]: {
+			number: routine.schedule.type === "weekly_count" ? routine.schedule.timesPerWeek : null,
+		},
 		[p.revision]: { number: routine.revision },
 		[p.createdAt]: { date: { start: routine.createdAt } },
 		[p.updatedAt]: { date: { start: routine.updatedAt } },
@@ -62,6 +70,8 @@ const NotionRoutinePageSchema = z.object({
 		[ROUTINE_PROPERTY.status]: select,
 		[ROUTINE_PROPERTY.scheduleType]: select,
 		[ROUTINE_PROPERTY.timeZone]: richText,
+		[ROUTINE_PROPERTY.daysOfWeek]: richText,
+		[ROUTINE_PROPERTY.timesPerWeek]: number,
 		[ROUTINE_PROPERTY.revision]: number,
 		[ROUTINE_PROPERTY.createdAt]: date,
 		[ROUTINE_PROPERTY.updatedAt]: date,
@@ -82,6 +92,11 @@ function toUtcIso(value: string | undefined): string | undefined {
 	if (value === undefined) return undefined;
 	const time = new Date(value);
 	return Number.isNaN(time.getTime()) ? value : time.toISOString();
+}
+
+/** "1,3,5" を数値配列にする。空は undefined。数値でない要素は NaN にして検証で拒否させる。 */
+function parseDays(value: string): number[] | undefined {
+	return value.trim() === "" ? undefined : value.split(",").map((part) => Number(part.trim() || Number.NaN));
 }
 
 /**
@@ -107,6 +122,9 @@ export function fromNotionPage(page: unknown): Routine {
 		schedule: {
 			type: props[p.scheduleType].select?.name,
 			timeZone: joined(props[p.timeZone].rich_text),
+			// 周期種別に無関係な値は空・null になる。ここで解釈できない値は検証で拒否させる。
+			daysOfWeek: parseDays(joined(props[p.daysOfWeek].rich_text)),
+			timesPerWeek: orUndefined(props[p.timesPerWeek].number),
 		},
 		revision: props[p.revision].number ?? undefined,
 		createdAt: toUtcIso(props[p.createdAt].date?.start),

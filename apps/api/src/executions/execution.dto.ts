@@ -33,3 +33,22 @@ export class DailySummaryResponseDto extends createZodDto(
 		),
 	}),
 ) {}
+
+export class WeeklySummaryResponseDto extends createZodDto(
+	z.object({
+		date: LocalDateSchema,
+		weekStart: LocalDateSchema,
+		weekEnd: LocalDateSchema,
+		summaries: z.array(
+			z.object({
+				routineId: RoutineIdSchema,
+				weekStart: LocalDateSchema,
+				weekEnd: LocalDateSchema,
+				required: z.number().int().min(1),
+				executedDays: z.number().int().min(0),
+				executionCount: z.number().int().min(0),
+				status: z.enum(["achieved", "not_achieved"]),
+			}),
+		),
+	}),
+) {}

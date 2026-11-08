@@ -6,6 +6,8 @@ export abstract class ExecutionRepository {
 	abstract save(record: ExecutionRecord): Promise<ExecutionRecord>;
 	/** 指定した実施日（localDate）の全レコードを取得する。不正データは ExecutionDataInvalidError。 */
 	abstract listByLocalDate(date: LocalDate): Promise<ExecutionRecord[]>;
+	/** `from` から `to`（両端を含む）の実施日の全レコードを取得する。 */
+	abstract listByLocalDateRange(from: LocalDate, to: LocalDate): Promise<ExecutionRecord[]>;
 }
 
 /** 保存先との通信失敗・レート制限・未設定。 */
