@@ -1,0 +1,5 @@
+#!/bin/sh
+# コミット前に lint と typecheck を実行する（テスト・ビルドは CI で検査）。
+set -e
+pnpm lint
+pnpm typecheck

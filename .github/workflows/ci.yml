@@ -4,7 +4,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  workflow_dispatch:
 
 # 同じブランチ・PR で新しい実行が始まったら古い実行を止める
 concurrency:
@@ -16,7 +15,7 @@ permissions:
 
 jobs:
   # 変更されたファイルから、実行が必要なジョブを決める。
-  # PR のときだけ絞り込み、main への push と手動実行では全ジョブを実行する。
+  # PR のときだけ絞り込み、main への push では全ジョブを実行する。
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
