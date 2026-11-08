@@ -3,6 +3,7 @@ import { ApiCreatedResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { ZodSerializerDto } from "nestjs-zod";
 import {
 	DailySummaryResponseDto,
+	WeeklySummaryResponseDto,
 	DateQueryDto,
 	ExecutionRecordDto,
 	ExecutionRecordInputDto,
@@ -34,5 +35,12 @@ export class ExecutionController {
 	@ZodSerializerDto(DailySummaryResponseDto)
 	summary(@Query() query: DateQueryDto) {
 		return this.executions.summaryFor(query.date);
+	}
+
+	@Get("weekly")
+	@ApiOkResponse({ type: WeeklySummaryResponseDto.Output })
+	@ZodSerializerDto(WeeklySummaryResponseDto)
+	weekly(@Query() query: DateQueryDto) {
+		return this.executions.weeklySummaryFor(query.date);
 	}
 }

@@ -25,11 +25,40 @@ export const TimeZoneSchema = z.string().refine((value) => {
 	}
 }, "IANA タイムゾーン名ではありません");
 
-/** MVP は毎日のみ。曜日指定・週N回は未決定（U-01）のため含めない。 */
+export const SCHEDULE_TYPES = ["daily", "weekly", "weekly_count"] as const;
+
+/** 毎日。 */
 export const DailyScheduleSchema = z.object({
 	type: z.literal("daily"),
 	timeZone: TimeZoneSchema,
 });
+
+/** ISO 曜日番号（月曜 = 1 … 日曜 = 7）。 */
+export const IsoWeekdaySchema = z.number().int().min(1).max(7);
+
+/** 曜日指定。指定した曜日だけ予定になる。曜日は昇順・重複なしで指定する（表現を一意にするため）。 */
+export const WeeklyScheduleSchema = z.object({
+	type: z.literal("weekly"),
+	daysOfWeek: z
+		.array(IsoWeekdaySchema)
+		.min(1)
+		.max(7)
+		.refine((days) => days.every((day, i) => i === 0 || day > (days[i - 1] as number)), "曜日は昇順で重複なく指定してください"),
+	timeZone: TimeZoneSchema,
+});
+
+/** 週N回。曜日は決めず、週（月曜始まり）に N 日実施すれば達成。特定の日の予定は持たない。 */
+export const WeeklyCountScheduleSchema = z.object({
+	type: z.literal("weekly_count"),
+	timesPerWeek: z.number().int().min(1).max(7),
+	timeZone: TimeZoneSchema,
+});
+
+export const ScheduleSchema = z.discriminatedUnion("type", [
+	DailyScheduleSchema,
+	WeeklyScheduleSchema,
+	WeeklyCountScheduleSchema,
+]);
 
 /** 暫定: 1 Routine に 0〜1 件の目標。複数目標・適用期間は未決定（U-02）。 */
 export const TargetSchema = z
@@ -66,7 +95,7 @@ export const RoutineInputSchema = z.object({
 	name: z.string().trim().min(1).max(100),
 	category: z.enum(ROUTINE_CATEGORIES),
 	purpose: z.string().trim().max(500).optional(),
-	schedule: DailyScheduleSchema,
+	schedule: ScheduleSchema,
 	target: TargetSchema.optional(),
 });
 
@@ -78,6 +107,7 @@ export const RoutineSchema = RoutineInputSchema.extend({
 	updatedAt: z.iso.datetime(),
 });
 
+export type Schedule = z.infer<typeof ScheduleSchema>;
 export type RoutineId = z.infer<typeof RoutineIdSchema>;
 export type LocalDate = z.infer<typeof LocalDateSchema>;
 export type RoutineInput = z.infer<typeof RoutineInputSchema>;

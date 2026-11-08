@@ -56,6 +56,16 @@ API 定義は [apps/api/openapi.yaml](apps/api/openapi.yaml)、判断は [docs/d
 
 既知の制約: Notion API クライアント（#11）が未実装のため、実行時の保存・取得は「未設定」エラー（502）になる。テストは `ExecutionNotionClient` と `NotionRoutineClient` を差し替えて検証している。目標の適用期間（U-02）が未決定のため、目標達成は「その日の合計」で暫定判定する。単位換算、記録の編集・削除、週次以上の集計は対象外。実 Notion との接続、Workers 上での動作は未検証。
 
+## 定期タスクの拡張（Epic #5）
+
+判断は [docs/decisions.md](docs/decisions.md)（RT-08・RT-09・EX-10・AJ-01〜AJ-04）、スキップ・延期の Notion プロパティは [docs/notion-adjustment-datasource.md](docs/notion-adjustment-datasource.md) を参照。
+
+- **曜日指定**: `schedule: { type: "weekly", daysOfWeek: [1,3,5], timeZone }`（月 = 1 … 日 = 7）。`GET /routines/schedule` が該当曜日のみ返す。
+- **週N回**: `schedule: { type: "weekly_count", timesPerWeek, timeZone }`。週は月曜始まり、実施日数で判定（同日複数は 1 日）。`GET /execution-records/weekly?date=` で date を含む週を評価する。数値目標の達成とは独立。
+- **スキップ・延期**: `POST /occurrence-adjustments/skip`・`/postpone`・`/{id}/cancel`、`GET /occurrence-adjustments?date=`、`GET /occurrence-adjustments/schedule?date=`。実施済みとして数えず、履歴は追記のみ。
+
+既知の制約: 週N回・週の区切り・調整の意味は U-01・U-02 が未決定のため暫定。Outcome 分離案は未承認で採用していない。延期された予定の再延期、確認と保存の間の競合防止は未対応。Notion 実接続・Workers 上の動作は未検証。
+
 ## 依存関係のビルドスクリプト
 
 pnpm はビルドスクリプトを持つ依存関係をそのままでは実行しない。許可するパッケージは `pnpm-workspace.yaml` の `allowBuilds` に列挙する（`workerd` は許可、テレメトリ用の `@scarf/scarf` は拒否）。

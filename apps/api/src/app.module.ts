@@ -1,13 +1,14 @@
 import { Module } from "@nestjs/common";
 import { APP_INTERCEPTOR, APP_PIPE } from "@nestjs/core";
 import { ZodSerializerInterceptor, ZodValidationPipe } from "nestjs-zod";
+import { AdjustmentModule } from "./adjustments/adjustment.module.ts";
 import { ExecutionModule } from "./executions/execution.module.ts";
 import { HealthController } from "./health/health.controller.ts";
 import { HealthService } from "./health/health.service.ts";
 import { RoutineModule } from "./routines/routine.module.ts";
 
 @Module({
-	imports: [RoutineModule, ExecutionModule],
+	imports: [RoutineModule, ExecutionModule, AdjustmentModule],
 	controllers: [HealthController],
 	providers: [
 		HealthService,

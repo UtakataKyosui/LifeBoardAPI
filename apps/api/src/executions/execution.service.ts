@@ -8,6 +8,8 @@ import {
 import { localDateOf } from "../routines/occurrence.ts";
 import { RoutineDataInvalidError, RoutineRepository, RoutineStorageError } from "../routines/routine.repository.ts";
 import { ExecutionDataInvalidError, ExecutionRepository, ExecutionStorageError } from "./execution.repository.ts";
+import { weekRangeOf } from "../routines/calendar.ts";
+import { summarizeWeek } from "./weekly.ts";
 import { summarizeDay } from "./summary.ts";
 import type { LocalDate } from "../routines/routine.schema.ts";
 import type { ExecutionRecord, ExecutionRecordId, ExecutionRecordInput } from "./execution.schema.ts";
@@ -57,6 +59,15 @@ export class ExecutionService {
 			this.guard(() => this.routines.listAll()),
 		]);
 		return { date, summaries: summarizeDay(routines, items, date) };
+	}
+
+	async weeklySummaryFor(date: LocalDate) {
+		const { weekStart, weekEnd } = weekRangeOf(date);
+		const [items, routines] = await Promise.all([
+			this.guard(() => this.records.listByLocalDateRange(weekStart, weekEnd)),
+			this.guard(() => this.routines.listAll()),
+		]);
+		return { date, weekStart, weekEnd, summaries: summarizeWeek(routines, items, date) };
 	}
 
 	/** 保存先の失敗を 502 にする。原因（個人データを含み得る）は応答にもログにも出さない。 */

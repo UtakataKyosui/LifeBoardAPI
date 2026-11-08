@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { ExecutionDataInvalidError, ExecutionRepository, ExecutionStorageError } from "../execution.repository.ts";
 import { ExecutionNotionClient } from "./notion-execution-client.ts";
 import { fromNotionPage, toNotionProperties } from "./execution.mapper.ts";
+import { addDays } from "../../routines/calendar.ts";
 import type { LocalDate } from "../../routines/routine.schema.ts";
 import type { ExecutionRecord } from "../execution.schema.ts";
 
@@ -43,6 +44,15 @@ export class NotionExecutionRepository extends ExecutionRepository {
 			}
 			cursor = list.hasMore ? (list.nextCursor ?? undefined) : undefined;
 		} while (cursor);
+		return records;
+	}
+
+	/** Local Date は文字列プロパティで範囲検索できないため、日ごとに取得して連結する（最大 7 回）。 */
+	async listByLocalDateRange(from: LocalDate, to: LocalDate): Promise<ExecutionRecord[]> {
+		const records: ExecutionRecord[] = [];
+		for (let date = from; date <= to; date = addDays(date, 1)) {
+			records.push(...(await this.listByLocalDate(date)));
+		}
 		return records;
 	}
 
