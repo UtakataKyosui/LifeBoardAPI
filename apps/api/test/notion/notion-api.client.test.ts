@@ -8,7 +8,15 @@ const res = (status: number, body: unknown, headers: Record<string, string> = {}
 	ok: status >= 200 && status < 300,
 	status,
 	headers: { get: (n: string) => headers[n.toLowerCase()] ?? null },
-	json: async () => body,
+	// 実際の Response と同じく、本文は一度しか読めない。
+	json: (() => {
+		let used = false;
+		return async () => {
+			if (used) throw new TypeError("Body is unusable");
+			used = true;
+			return body;
+		};
+	})(),
 });
 
 function make(responses: ReturnType<typeof res>[]) {

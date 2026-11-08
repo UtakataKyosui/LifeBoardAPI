@@ -98,7 +98,9 @@ export class NotionApiClient {
 				await this.sleep(this.delay(res, attempt));
 				continue;
 			}
-			throw new NotionApiError(`Notion API がエラーを返しました (status ${res.status}, code ${await errorCode(res)})`, res.status, await errorCode(res));
+			// 本文は一度しか読めないため、エラーコードは 1 回だけ取り出して使い回す。
+			const code = await errorCode(res);
+			throw new NotionApiError(`Notion API がエラーを返しました (status ${res.status}, code ${code})`, res.status, code);
 		}
 	}
 
