@@ -26,6 +26,18 @@ LifeBoard の API を開発する pnpm workspace。
 | `pnpm build` | 全パッケージのビルド |
 | `pnpm dev` | `cf dev` でローカル起動（`http://localhost:5173/health`、OpenAPI 定義は `/openapi.json`） |
 
+## CI
+
+`.github/workflows/ci.yml` で、PR と `main` への push ごとに上のコマンドのうち lint・typecheck・test・build を並列に実行する。
+
+- PR では変更されたファイルを見て、必要なジョブだけを実行する。ドキュメントだけの変更ではすべてスキップする。
+  - Lint: TypeScript/JavaScript ファイル、oxlint の設定、依存関係、CI 定義の変更
+  - Typecheck・Test・Build: `apps/api/**`、依存関係、CI 定義の変更
+- `main` への push と手動実行（`workflow_dispatch`）では、全ジョブを実行する。
+- pnpm store を `pnpm-lock.yaml` のハッシュをキーにキャッシュする（`.github/actions/setup`）。
+- 同じ PR・ブランチで新しい実行が始まると、古い実行はキャンセルされる。
+- ブランチ保護の必須チェックには `CI result` だけを指定する。スキップしたジョブは成功として扱う。
+
 ## 入力検証と OpenAPI
 
 Zod スキーマを定義元に、`nestjs-zod` の `createZodDto` で DTO を作る。入力は `ZodValidationPipe` で検証し、OpenAPI は `@nestjs/swagger` で同じスキーマから生成する。

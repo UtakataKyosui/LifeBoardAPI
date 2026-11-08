@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 同じブランチ・PR で新しい実行が始まったら古い実行を止める
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # 変更されたファイルから、実行が必要なジョブを決める。
+  # PR のときだけ絞り込み、main への push と手動実行では全ジョブを実行する。
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      lint: ${{ steps.decide.outputs.lint }}
+      api: ${{ steps.decide.outputs.api }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            shared: &shared
+              - package.json
+              - pnpm-lock.yaml
+              - pnpm-workspace.yaml
+              - .github/workflows/ci.yml
+              - .github/actions/**
+            lint:
+              - *shared
+              - "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"
+              - "**/.oxlintrc*"
+              - "**/oxlint*.json"
+            api:
+              - *shared
+              - apps/api/**
+
+      - name: Decide jobs to run
+        id: decide
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          LINT: ${{ steps.filter.outputs.lint }}
+          API: ${{ steps.filter.outputs.api }}
+        run: |
+          if [ "$IS_PR" = "true" ]; then
+            echo "lint=$LINT" >> "$GITHUB_OUTPUT"
+            echo "api=$API" >> "$GITHUB_OUTPUT"
+          else
+            echo "lint=true" >> "$GITHUB_OUTPUT"
+            echo "api=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: Lint
+    needs: changes
+    if: needs.changes.outputs.lint == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: Typecheck
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  test:
+    name: Test
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm test
+
+  build:
+    name: Build
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+
+  # ブランチ保護の必須チェックにはこのジョブだけを指定する。
+  # スキップされたジョブは成功扱い、失敗・キャンセルされたジョブがあれば失敗にする。
+  ci-result:
+    name: CI result
+    needs: [changes, lint, typecheck, test, build]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "::error::a required job finished with '$result'"; exit 1 ;;
+            esac
+          done
