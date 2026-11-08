@@ -34,6 +34,7 @@ LifeBoard の API を開発する pnpm workspace。
   - Lint: TypeScript/JavaScript ファイル、oxlint の設定、依存関係、CI 定義の変更
   - Typecheck・Test・Build: `apps/api/**`、依存関係、CI 定義の変更
 - `main` への push と手動実行（`workflow_dispatch`）では、全ジョブを実行する。
+- action の版は `.github/workflows/actions.lock` で固定する（`uses:` はタグ指定、実行されるコミットはロックファイルが決める）。`uses:` を追加・変更したら `gh actions-lock` を実行してロックファイルを更新する。CI の `Verify actions.lock` が `gh actions-lock --verify` で不一致を検出する。
 - pnpm store を `pnpm-lock.yaml` のハッシュをキーにキャッシュする（`.github/actions/setup`）。
 - 同じ PR・ブランチで新しい実行が始まると、古い実行はキャンセルされる。
 - ブランチ保護の必須チェックには `CI result` だけを指定する。スキップしたジョブは成功として扱う。
