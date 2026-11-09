@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/UtakataKyosui/gh-pj-synker/main/docs/pj-synker.schema.json
+version: 1
+
+project:
+  owner: UtakataKyosui
+  number: 32

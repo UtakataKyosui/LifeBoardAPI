@@ -8,6 +8,8 @@ workflows:
         - 'actions/setup-node@v7.1.0'
         - 'dorny/paths-filter@v4.0.3'
         - 'pnpm/action-setup@v6.1.1'
+    '.github/workflows/project-sync.yml':
+        - 'actions/checkout@v7.0.1'
 dependencies:
     'actions/checkout@v7.0.1':
         ref: 'v7.0.1'
